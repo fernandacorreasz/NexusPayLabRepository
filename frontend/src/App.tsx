@@ -1,35 +1,750 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type Account = { id:number; accountNumber:string; customerId:number; type:string; status:string; currency:string; balance:number; creditLimit:number; ownerName:string };
-type Customer = { id:number; username:string; fullName:string; document:string; email:string; phone:string; address:string; status:string };
-type Tx = { id:number; accountId:number; type:string; amount:number; description:string; counterparty:string; status:string; createdAt:string };
-type View = 'home'|'accounts'|'activity'|'transfer'|'profile';
+type Account = {
+  id: number;
+  accountNumber: string;
+  customerId: number;
+  type: string;
+  status: string;
+  currency: string;
+  balance: number;
+  creditLimit: number;
+  ownerName: string;
+};
+type Customer = {
+  id: number;
+  username: string;
+  fullName: string;
+  document: string;
+  email: string;
+  phone: string;
+  address: string;
+  status: string;
+};
+type Tx = {
+  id: number;
+  accountId: number;
+  type: string;
+  amount: number;
+  description: string;
+  counterparty: string;
+  status: string;
+  createdAt: string;
+};
+type View = "home" | "accounts" | "activity" | "transfer" | "profile";
 
-declare global { interface Window { __NEXUS_CONFIG__?: { publicKey:string; apiBase:string } } }
-window.__NEXUS_CONFIG__ = { publicKey:'nxp-demo-public-config-2026', apiBase:'/api' };
-const users = { alice:'alice123', bruno:'bruno123', carla:'carla123' };
-const auth = (user:string) => ({ Authorization:`Basic ${btoa(`${user}:${users[user as keyof typeof users]}`)}` });
-const money = (value:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value);
+declare global {
+  interface Window {
+    __NEXUS_CONFIG__?: { publicKey: string; apiBase: string };
+  }
+}
+window.__NEXUS_CONFIG__ = {
+  publicKey: "nxp-demo-public-config-2026",
+  apiBase: "/api",
+};
+const users = { alice: "alice123", bruno: "bruno123", carla: "carla123" };
+const auth = (user: string) => ({
+  Authorization: `Basic ${btoa(`${user}:${users[user as keyof typeof users]}`)}`,
+});
+const money = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    value,
+  );
 
 export default function App() {
-  const [user,setUser]=useState('alice'),[view,setView]=useState<View>('home'),[customer,setCustomer]=useState<Customer|null>(null),[accounts,setAccounts]=useState<Account[]>([]),[selected,setSelected]=useState<Account|null>(null),[transactions,setTransactions]=useState<Tx[]>([]),[search,setSearch]=useState(''),[message,setMessage]=useState(''),[loading,setLoading]=useState(true);
-  const [transfer,setTransfer]=useState({targetAccountNumber:'0002-01',amount:'',description:'Transferência NexusPay'});
-  const [deposit,setDeposit]=useState({amount:'',description:'Depósito em conta',counterparty:'Origem externa'});
-  const headers=auth(user);
-  async function load(){setLoading(true);const [me,a]=await Promise.all([fetch('/api/customers/me',{headers}),fetch('/api/accounts',{headers})]);if(me.ok)setCustomer(await me.json());if(a.ok){const list=await a.json();setAccounts(list);if(!selected&&list[0])setSelected(list[0]);else if(selected)setSelected(list.find((x:Account)=>x.id===selected.id)||list[0]||null)}setLoading(false)}
-  async function loadTransactions(account:Account){setSelected(account);const r=await fetch(`/api/accounts/${account.id}/transactions`,{headers});if(r.ok)setTransactions(await r.json());setView('activity')}
-  useEffect(()=>{void load()},[user]);
-  useEffect(()=>{if(selected&&view==='activity')void loadTransactions(selected)},[selected?.id]);
-  const total=useMemo(()=>accounts.reduce((sum,a)=>sum+Number(a.balance),0),[accounts]);
-  const submitTransfer=async(e:FormEvent)=>{e.preventDefault();setMessage('Processando transferência...');const r=await fetch('/api/transfers',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-Request-Id':`web-${Date.now()}`},body:JSON.stringify({sourceAccountId:selected?.id,targetAccountNumber:transfer.targetAccountNumber,amount:Number(transfer.amount),description:transfer.description})});const body=await r.json().catch(()=>({}));setMessage(r.ok?'Transferência concluída.':body.error||'Não foi possível concluir.');if(r.ok){setTransfer({...transfer,amount:''});await load()}};
-  const submitDeposit=async(e:FormEvent)=>{e.preventDefault();if(!selected)return;setMessage('Confirmando depósito...');const r=await fetch(`/api/accounts/${selected.id}/deposit`,{method:'POST',headers:{...headers,'Content-Type':'application/json','X-Request-Id':`deposit-${Date.now()}`},body:JSON.stringify({amount:Number(deposit.amount),description:deposit.description,counterparty:deposit.counterparty})});setMessage(r.ok?'Depósito registrado.':'Falha no depósito.');if(r.ok){setDeposit({...deposit,amount:''});await load()}};
-  const doSearch=async()=>{const r=await fetch(`/api/accounts/search?term=${encodeURIComponent(search)}`,{headers});if(r.ok){setAccounts(await r.json());setMessage('Busca atualizada.')}};
-  const pageTitle=view==='home'?'Visão geral':view==='accounts'?'Minhas contas':view==='activity'?'Movimentações':view==='transfer'?'Transferir':'Meu perfil';
-  return <div className="shell"><aside className="rail"><div className="wordmark"><span className="mark">N</span><b>Nexus<span>Pay</span></b></div><div className="rail-label">CONTA DIGITAL</div><nav>{([['home','Início','⌂'],['accounts','Contas','◫'],['activity','Extrato','↕'],['transfer','Transferir','↗'],['profile','Perfil','○']] as [View,string,string][]).map(([key,label,icon])=><button key={key} className={view===key?'active':''} onClick={()=>setView(key)}><i>{icon}</i>{label}</button>)}</nav><div className="rail-bottom"><div className="secure"><span>●</span><div><b>Conta protegida</b><small>Último acesso agora</small></div></div><div className="profile-mini"><span>{customer?.fullName?.slice(0,1)||'A'}</span><div><b>{customer?.fullName||'Carregando'}</b><small>{customer?.email||''}</small></div><select value={user} onChange={e=>setUser(e.target.value)} aria-label="Cliente"><option value="alice">Alice</option><option value="bruno">Bruno</option><option value="carla">Carla</option></select></div></div></aside><main className="content"><header className="top"><div><span className="eyebrow">NEXUSPAY / {pageTitle.toUpperCase()}</span><h1>{pageTitle}</h1><p>Olá, {customer?.fullName?.split(' ')[0]||'cliente'}.</p></div><div className="top-actions"><button className="icon-btn">⌕</button><button className="icon-btn">♧</button><span className="top-avatar">{customer?.fullName?.slice(0,1)||'A'}</span></div></header>{loading?<div className="loading">Carregando seu espaço financeiro...</div>:<>{view==='home'&&<Home accounts={accounts} total={total} selected={selected} transactions={transactions} onAccount={loadTransactions} onTransfer={()=>setView('transfer')} onAccounts={()=>setView('accounts')} onDeposit={submitDeposit} deposit={deposit} setDeposit={setDeposit} message={message}/>} {view==='accounts'&&<Accounts accounts={accounts} search={search} setSearch={setSearch} onSearch={doSearch} onSelect={loadTransactions}/>} {view==='activity'&&<Activity account={selected} transactions={transactions} onBack={()=>setView('accounts')}/>} {view==='transfer'&&<Transfer accounts={accounts} selected={selected} setSelected={setSelected} transfer={transfer} setTransfer={setTransfer} onSubmit={submitTransfer}/>} {view==='profile'&&<Profile customer={customer}/>}</>}</main>{message&&<div className="notice">{message}<button onClick={()=>setMessage('')}>×</button></div>}</div>;
+  const [user, setUser] = useState("alice"),
+    [view, setView] = useState<View>("home"),
+    [customer, setCustomer] = useState<Customer | null>(null),
+    [accounts, setAccounts] = useState<Account[]>([]),
+    [selected, setSelected] = useState<Account | null>(null),
+    [transactions, setTransactions] = useState<Tx[]>([]),
+    [search, setSearch] = useState(""),
+    [message, setMessage] = useState(""),
+    [loading, setLoading] = useState(true);
+  const [transfer, setTransfer] = useState({
+    targetAccountNumber: "0002-01",
+    amount: "",
+    description: "Transferência NexusPay",
+  });
+  const [deposit, setDeposit] = useState({
+    amount: "",
+    description: "Depósito em conta",
+    counterparty: "Origem externa",
+  });
+  const headers = auth(user);
+  async function load() {
+    setLoading(true);
+    const [me, a] = await Promise.all([
+      fetch("/api/customers/me", { headers }),
+      fetch("/api/accounts", { headers }),
+    ]);
+    if (me.ok) setCustomer(await me.json());
+    if (a.ok) {
+      const list = await a.json();
+      setAccounts(list);
+      if (!selected && list[0]) setSelected(list[0]);
+      else if (selected)
+        setSelected(
+          list.find((x: Account) => x.id === selected.id) || list[0] || null,
+        );
+    }
+    setLoading(false);
+  }
+  async function loadTransactions(account: Account) {
+    setSelected(account);
+    const r = await fetch(`/api/accounts/${account.id}/transactions`, {
+      headers,
+    });
+    if (r.ok) setTransactions(await r.json());
+    setView("activity");
+  }
+  useEffect(() => {
+    void load();
+  }, [user]);
+  useEffect(() => {
+    if (selected && view === "activity") void loadTransactions(selected);
+  }, [selected?.id]);
+  const total = useMemo(
+    () => accounts.reduce((sum, a) => sum + Number(a.balance), 0),
+    [accounts],
+  );
+  const submitTransfer = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage("Processando transferência...");
+    const r = await fetch("/api/transfers", {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        "X-Request-Id": `web-${Date.now()}`,
+      },
+      body: JSON.stringify({
+        sourceAccountId: selected?.id,
+        targetAccountNumber: transfer.targetAccountNumber,
+        amount: Number(transfer.amount),
+        description: transfer.description,
+      }),
+    });
+    const body = await r.json().catch(() => ({}));
+    setMessage(
+      r.ok
+        ? "Transferência concluída."
+        : body.error || "Não foi possível concluir.",
+    );
+    if (r.ok) {
+      setTransfer({ ...transfer, amount: "" });
+      await load();
+    }
+  };
+  const submitDeposit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    setMessage("Confirmando depósito...");
+    const r = await fetch(`/api/accounts/${selected.id}/deposit`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        "X-Request-Id": `deposit-${Date.now()}`,
+      },
+      body: JSON.stringify({
+        amount: Number(deposit.amount),
+        description: deposit.description,
+        counterparty: deposit.counterparty,
+      }),
+    });
+    setMessage(r.ok ? "Depósito registrado." : "Falha no depósito.");
+    if (r.ok) {
+      setDeposit({ ...deposit, amount: "" });
+      await load();
+    }
+  };
+  const doSearch = async () => {
+    const r = await fetch(
+      `/api/accounts/search?term=${encodeURIComponent(search)}`,
+      { headers },
+    );
+    if (r.ok) {
+      setAccounts(await r.json());
+      setMessage("Busca atualizada.");
+    }
+  };
+  const pageTitle =
+    view === "home"
+      ? "Visão geral"
+      : view === "accounts"
+        ? "Minhas contas"
+        : view === "activity"
+          ? "Movimentações"
+          : view === "transfer"
+            ? "Transferir"
+            : "Meu perfil";
+  return (
+    <div className="shell">
+      <aside className="rail">
+        <div className="wordmark">
+          <span className="mark">N</span>
+          <b>
+            Nexus<span>Pay</span>
+          </b>
+        </div>
+        <div className="rail-label">CONTA DIGITAL</div>
+        <nav>
+          {(
+            [
+              ["home", "Início", "⌂"],
+              ["accounts", "Contas", "◫"],
+              ["activity", "Extrato", "↕"],
+              ["transfer", "Transferir", "↗"],
+              ["profile", "Perfil", "○"],
+            ] as [View, string, string][]
+          ).map(([key, label, icon]) => (
+            <button
+              key={key}
+              className={view === key ? "active" : ""}
+              onClick={() => setView(key)}
+            >
+              <i>{icon}</i>
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="rail-bottom">
+          <div className="secure">
+            <span>●</span>
+            <div>
+              <b>Conta protegida</b>
+              <small>Último acesso agora</small>
+            </div>
+          </div>
+          <div className="profile-mini">
+            <span>{customer?.fullName?.slice(0, 1) || "A"}</span>
+            <div>
+              <b>{customer?.fullName || "Carregando"}</b>
+              <small>{customer?.email || ""}</small>
+            </div>
+            <select
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+              aria-label="Cliente"
+            >
+              <option value="alice">Alice</option>
+              <option value="bruno">Bruno</option>
+              <option value="carla">Carla</option>
+            </select>
+          </div>
+        </div>
+      </aside>
+      <main className="content">
+        <header className="top">
+          <div>
+            <span className="eyebrow">
+              NEXUSPAY / {pageTitle.toUpperCase()}
+            </span>
+            <h1>{pageTitle}</h1>
+            <p>Olá, {customer?.fullName?.split(" ")[0] || "cliente"}.</p>
+          </div>
+          <div className="top-actions">
+            <button className="icon-btn">⌕</button>
+            <button className="icon-btn">♧</button>
+            <span className="top-avatar">
+              {customer?.fullName?.slice(0, 1) || "A"}
+            </span>
+          </div>
+        </header>
+        {loading ? (
+          <div className="loading">Carregando seu espaço financeiro...</div>
+        ) : (
+          <>
+            {view === "home" && (
+              <Home
+                accounts={accounts}
+                total={total}
+                selected={selected}
+                transactions={transactions}
+                onAccount={loadTransactions}
+                onTransfer={() => setView("transfer")}
+                onAccounts={() => setView("accounts")}
+                onDeposit={submitDeposit}
+                deposit={deposit}
+                setDeposit={setDeposit}
+                message={message}
+              />
+            )}{" "}
+            {view === "accounts" && (
+              <Accounts
+                accounts={accounts}
+                search={search}
+                setSearch={setSearch}
+                onSearch={doSearch}
+                onSelect={loadTransactions}
+              />
+            )}{" "}
+            {view === "activity" && (
+              <Activity
+                account={selected}
+                transactions={transactions}
+                onBack={() => setView("accounts")}
+              />
+            )}{" "}
+            {view === "transfer" && (
+              <Transfer
+                accounts={accounts}
+                selected={selected}
+                setSelected={setSelected}
+                transfer={transfer}
+                setTransfer={setTransfer}
+                onSubmit={submitTransfer}
+              />
+            )}{" "}
+            {view === "profile" && <Profile customer={customer} />}
+          </>
+        )}
+      </main>
+      {message && (
+        <div className="notice">
+          {message}
+          <button onClick={() => setMessage("")}>×</button>
+        </div>
+      )}
+    </div>
+  );
 }
-function Home({accounts,total,selected,transactions,onAccount,onTransfer,onAccounts,onDeposit,deposit,setDeposit,message}:{accounts:Account[];total:number;selected:Account|null;transactions:Tx[];onAccount:(a:Account)=>void;onTransfer:()=>void;onAccounts:()=>void;onDeposit:(e:FormEvent)=>void;deposit:any;setDeposit:(x:any)=>void;message:string}){return <><section className="hero"><div><span className="eyebrow light">PATRIMÔNIO TOTAL</span><strong>{money(total)}</strong><p>Saldo consolidado das suas contas</p></div><div className="hero-orbit"><span>BRL</span><i/><i/><i/></div></section><div className="stats"><div><small>Saldo disponível</small><b>{money(selected?.balance||0)}</b><em>Conta {selected?.accountNumber||'—'}</em></div><div><small>Limite disponível</small><b>{money((selected?.creditLimit||0))}</b><em>Crédito aprovado</em></div><div><small>Contas ativas</small><b>{accounts.length}</b><em>NexusPay</em></div></div><div className="content-grid"><section className="panel accounts-panel"><div className="panel-head"><div><span className="eyebrow">PORTFÓLIO</span><h2>Suas contas</h2></div><button className="text-btn" onClick={onAccounts}>Ver todas →</button></div>{accounts.map(a=><button className={`account-row ${selected?.id===a.id?'chosen':''}`} key={a.id} onClick={()=>onAccount(a)}><span className="account-icon">{a.type==='SAVINGS'?'◒':'N'}</span><span className="account-main"><b>{a.type==='SAVINGS'?'Poupança':'Conta corrente'}</b><small>{a.accountNumber} · {a.currency}</small></span><strong>{money(a.balance)}</strong><span className="chevron">›</span></button>)}</section><section className="panel quick-panel"><div className="panel-head"><div><span className="eyebrow">ATALHOS</span><h2>O que você precisa?</h2></div></div><div className="quick-actions"><button onClick={onTransfer}><span className="purple">↗</span><b>Transferir</b><small>Envie para uma conta</small></button><button onClick={()=>document.getElementById('deposit')?.scrollIntoView({behavior:'smooth'})}><span className="green">＋</span><b>Depositar</b><small>Adicione saldo</small></button><button><span className="orange">▣</span><b>Pagar conta</b><small>Em breve</small></button><button><span className="blue">▤</span><b>Cartão</b><small>Ver fatura</small></button></div></section></div><div className="content-grid lower"><section className="panel transactions-panel"><div className="panel-head"><div><span className="eyebrow">ATIVIDADE RECENTE</span><h2>Últimas movimentações</h2></div><button className="text-btn" onClick={()=>selected&&onAccount(selected)}>Ver extrato →</button></div>{transactions.length?transactions.slice(0,5).map(t=><Transaction tx={t} key={t.id}/>):<div className="empty">Selecione uma conta para ver movimentações.</div>}</section><section className="panel deposit-panel" id="deposit"><div className="panel-head"><div><span className="eyebrow">ENTRADA</span><h2>Adicionar dinheiro</h2></div></div><form onSubmit={onDeposit}><label>Valor<input required type="number" min="0.01" step="0.01" value={deposit.amount} onChange={e=>setDeposit({...deposit,amount:e.target.value})} placeholder="R$ 0,00"/></label><label>Descrição<input value={deposit.description} onChange={e=>setDeposit({...deposit,description:e.target.value})}/></label><label>Origem<input value={deposit.counterparty} onChange={e=>setDeposit({...deposit,counterparty:e.target.value})}/></label><button className="primary">Confirmar depósito</button></form></section></div></>}
-function Transaction({tx}:{tx:Tx}){return <div className="tx-row"><span className={`tx-icon ${tx.type==='CREDIT'?'credit':'debit'}`}>{tx.type==='CREDIT'?'↓':'↑'}</span><div className="tx-info"><b dangerouslySetInnerHTML={{__html:tx.description}}/><small>{tx.counterparty||'NexusPay'} · {new Date(tx.createdAt).toLocaleDateString('pt-BR')}</small></div><strong className={tx.type==='CREDIT'?'positive':'negative'}>{tx.type==='CREDIT'?'+':'-'} {money(Number(tx.amount))}</strong></div>}
-function Accounts({accounts,search,setSearch,onSearch,onSelect}:{accounts:Account[];search:string;setSearch:(x:string)=>void;onSearch:()=>void;onSelect:(a:Account)=>void}){return <section className="page-section"><div className="section-intro"><div><span className="eyebrow">PORTFÓLIO FINANCEIRO</span><h2>Todas as contas</h2><p>Controle seus saldos e detalhes de relacionamento.</p></div><form className="search-form" onSubmit={e=>{e.preventDefault();onSearch()}}><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar conta ou titular"/><button>Buscar</button></form></div><div className="account-cards">{accounts.map(a=><button className="large-account" key={a.id} onClick={()=>onSelect(a)}><div className="card-top"><span className="account-icon">{a.type==='SAVINGS'?'◒':'N'}</span><span className="card-chip">NEXUSPAY</span></div><small>{a.type==='SAVINGS'?'POUPANÇA':'CONTA CORRENTE'}</small><b>{a.accountNumber}</b><strong>{money(a.balance)}</strong><div className="card-foot"><span>{a.ownerName}</span><span>{a.status}</span></div></button>)}</div></section>}
-function Activity({account,transactions,onBack}:{account:Account|null;transactions:Tx[];onBack:()=>void}){return <section className="page-section"><button className="back" onClick={onBack}>← Voltar para contas</button><div className="section-intro"><div><span className="eyebrow">EXTRATO DETALHADO</span><h2>{account?.accountNumber||'Conta'}</h2><p>Saldo disponível <b>{money(account?.balance||0)}</b></p></div><button className="outline">Baixar extrato</button></div><div className="panel full-panel"><div className="filter-bar"><b>Movimentações</b><span>{transactions.length} registros</span><select><option>Todos os períodos</option><option>Últimos 30 dias</option></select></div>{transactions.map(t=><Transaction tx={t} key={t.id}/>)}</div></section>}
-function Transfer({accounts,selected,setSelected,transfer,setTransfer,onSubmit}:{accounts:Account[];selected:Account|null;setSelected:(a:Account)=>void;transfer:any;setTransfer:(x:any)=>void;onSubmit:(e:FormEvent)=>void}){return <section className="page-section narrow"><span className="eyebrow">PAGAMENTO INSTANTÂNEO</span><h2>Transferir dinheiro</h2><p className="lead">Envie valores para uma conta NexusPay.</p><form className="transfer-form panel" onSubmit={onSubmit}><label>Conta de origem<select value={selected?.id||''} onChange={e=>{const a=accounts.find(x=>x.id===Number(e.target.value));if(a)setSelected(a)}}>{accounts.map(a=><option key={a.id} value={a.id}>{a.accountNumber} · {money(a.balance)}</option>)}</select></label><label>Conta de destino<input required value={transfer.targetAccountNumber} onChange={e=>setTransfer({...transfer,targetAccountNumber:e.target.value})} placeholder="0000-00"/></label><label>Valor<input required type="number" min="0.01" max="10000" step="0.01" value={transfer.amount} onChange={e=>setTransfer({...transfer,amount:e.target.value})} placeholder="R$ 0,00"/></label><label>Descrição<input required value={transfer.description} onChange={e=>setTransfer({...transfer,description:e.target.value})}/></label><div className="transfer-summary"><span>Você está enviando</span><strong>{money(Number(transfer.amount)||0)}</strong><small>O valor será descontado imediatamente.</small></div><button className="primary">Revisar transferência →</button></form></section>}
-function Profile({customer}:{customer:Customer|null}){return <section className="page-section narrow"><span className="eyebrow">DADOS PESSOAIS</span><h2>Meu perfil</h2><p className="lead">Mantenha seus dados de relacionamento atualizados.</p><div className="panel profile-card"><div className="profile-head"><span className="big-avatar">{customer?.fullName?.slice(0,1)}</span><div><h3>{customer?.fullName}</h3><span className="status-pill">● Conta ativa</span></div></div><div className="profile-fields"><div><small>Documento</small><b>{customer?.document}</b></div><div><small>E-mail</small><b>{customer?.email}</b></div><div><small>Telefone</small><b>{customer?.phone}</b></div><div><small>Endereço</small><b>{customer?.address}</b></div></div></div></section>}
+function Home({
+  accounts,
+  total,
+  selected,
+  transactions,
+  onAccount,
+  onTransfer,
+  onAccounts,
+  onDeposit,
+  deposit,
+  setDeposit,
+  message,
+}: {
+  accounts: Account[];
+  total: number;
+  selected: Account | null;
+  transactions: Tx[];
+  onAccount: (a: Account) => void;
+  onTransfer: () => void;
+  onAccounts: () => void;
+  onDeposit: (e: FormEvent) => void;
+  deposit: any;
+  setDeposit: (x: any) => void;
+  message: string;
+}) {
+  return (
+    <>
+      <section className="hero">
+        <div>
+          <span className="eyebrow light">PATRIMÔNIO TOTAL</span>
+          <strong>{money(total)}</strong>
+          <p>Saldo consolidado das suas contas</p>
+        </div>
+        <div className="hero-orbit">
+          <span>BRL</span>
+          <i />
+          <i />
+          <i />
+        </div>
+      </section>
+      <div className="stats">
+        <div>
+          <small>Saldo disponível</small>
+          <b>{money(selected?.balance || 0)}</b>
+          <em>Conta {selected?.accountNumber || "—"}</em>
+        </div>
+        <div>
+          <small>Limite disponível</small>
+          <b>{money(selected?.creditLimit || 0)}</b>
+          <em>Crédito aprovado</em>
+        </div>
+        <div>
+          <small>Contas ativas</small>
+          <b>{accounts.length}</b>
+          <em>NexusPay</em>
+        </div>
+      </div>
+      <div className="content-grid">
+        <section className="panel accounts-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">PORTFÓLIO</span>
+              <h2>Suas contas</h2>
+            </div>
+            <button className="text-btn" onClick={onAccounts}>
+              Ver todas →
+            </button>
+          </div>
+          {accounts.map((a) => (
+            <button
+              className={`account-row ${selected?.id === a.id ? "chosen" : ""}`}
+              key={a.id}
+              onClick={() => onAccount(a)}
+            >
+              <span className="account-icon">
+                {a.type === "SAVINGS" ? "◒" : "N"}
+              </span>
+              <span className="account-main">
+                <b>{a.type === "SAVINGS" ? "Poupança" : "Conta corrente"}</b>
+                <small>
+                  {a.accountNumber} · {a.currency}
+                </small>
+              </span>
+              <strong>{money(a.balance)}</strong>
+              <span className="chevron">›</span>
+            </button>
+          ))}
+        </section>
+        <section className="panel quick-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">ATALHOS</span>
+              <h2>O que você precisa?</h2>
+            </div>
+          </div>
+          <div className="quick-actions">
+            <button onClick={onTransfer}>
+              <span className="purple">↗</span>
+              <b>Transferir</b>
+              <small>Envie para uma conta</small>
+            </button>
+            <button
+              onClick={() =>
+                document
+                  .getElementById("deposit")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              <span className="green">＋</span>
+              <b>Depositar</b>
+              <small>Adicione saldo</small>
+            </button>
+            <button>
+              <span className="orange">▣</span>
+              <b>Pagar conta</b>
+              <small>Em breve</small>
+            </button>
+            <button>
+              <span className="blue">▤</span>
+              <b>Cartão</b>
+              <small>Ver fatura</small>
+            </button>
+          </div>
+        </section>
+      </div>
+      <div className="content-grid lower">
+        <section className="panel transactions-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">ATIVIDADE RECENTE</span>
+              <h2>Últimas movimentações</h2>
+            </div>
+            <button
+              className="text-btn"
+              onClick={() => selected && onAccount(selected)}
+            >
+              Ver extrato →
+            </button>
+          </div>
+          {transactions.length ? (
+            transactions
+              .slice(0, 5)
+              .map((t) => <Transaction tx={t} key={t.id} />)
+          ) : (
+            <div className="empty">
+              Selecione uma conta para ver movimentações.
+            </div>
+          )}
+        </section>
+        <section className="panel deposit-panel" id="deposit">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">ENTRADA</span>
+              <h2>Adicionar dinheiro</h2>
+            </div>
+          </div>
+          <form onSubmit={onDeposit}>
+            <label>
+              Valor
+              <input
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={deposit.amount}
+                onChange={(e) =>
+                  setDeposit({ ...deposit, amount: e.target.value })
+                }
+                placeholder="R$ 0,00"
+              />
+            </label>
+            <label>
+              Descrição
+              <input
+                value={deposit.description}
+                onChange={(e) =>
+                  setDeposit({ ...deposit, description: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Origem
+              <input
+                value={deposit.counterparty}
+                onChange={(e) =>
+                  setDeposit({ ...deposit, counterparty: e.target.value })
+                }
+              />
+            </label>
+            <button className="primary">Confirmar depósito</button>
+          </form>
+        </section>
+      </div>
+    </>
+  );
+}
+function Transaction({ tx }: { tx: Tx }) {
+  return (
+    <div className="tx-row">
+      <span className={`tx-icon ${tx.type === "CREDIT" ? "credit" : "debit"}`}>
+        {tx.type === "CREDIT" ? "↓" : "↑"}
+      </span>
+      <div className="tx-info">
+        <b dangerouslySetInnerHTML={{ __html: tx.description }} />
+        <small>
+          {tx.counterparty || "NexusPay"} ·{" "}
+          {new Date(tx.createdAt).toLocaleDateString("pt-BR")}
+        </small>
+      </div>
+      <strong className={tx.type === "CREDIT" ? "positive" : "negative"}>
+        {tx.type === "CREDIT" ? "+" : "-"} {money(Number(tx.amount))}
+      </strong>
+    </div>
+  );
+}
+function Accounts({
+  accounts,
+  search,
+  setSearch,
+  onSearch,
+  onSelect,
+}: {
+  accounts: Account[];
+  search: string;
+  setSearch: (x: string) => void;
+  onSearch: () => void;
+  onSelect: (a: Account) => void;
+}) {
+  return (
+    <section className="page-section">
+      <div className="section-intro">
+        <div>
+          <span className="eyebrow">PORTFÓLIO FINANCEIRO</span>
+          <h2>Todas as contas</h2>
+          <p>Controle seus saldos e detalhes de relacionamento.</p>
+        </div>
+        <form
+          className="search-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSearch();
+          }}
+        >
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar conta ou titular"
+          />
+          <button>Buscar</button>
+        </form>
+      </div>
+      <div className="account-cards">
+        {accounts.map((a) => (
+          <button
+            className="large-account"
+            key={a.id}
+            onClick={() => onSelect(a)}
+          >
+            <div className="card-top">
+              <span className="account-icon">
+                {a.type === "SAVINGS" ? "◒" : "N"}
+              </span>
+              <span className="card-chip">NEXUSPAY</span>
+            </div>
+            <small>
+              {a.type === "SAVINGS" ? "POUPANÇA" : "CONTA CORRENTE"}
+            </small>
+            <b>{a.accountNumber}</b>
+            <strong>{money(a.balance)}</strong>
+            <div className="card-foot">
+              <span>{a.ownerName}</span>
+              <span>{a.status}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+function Activity({
+  account,
+  transactions,
+  onBack,
+}: {
+  account: Account | null;
+  transactions: Tx[];
+  onBack: () => void;
+}) {
+  return (
+    <section className="page-section">
+      <button className="back" onClick={onBack}>
+        ← Voltar para contas
+      </button>
+      <div className="section-intro">
+        <div>
+          <span className="eyebrow">EXTRATO DETALHADO</span>
+          <h2>{account?.accountNumber || "Conta"}</h2>
+          <p>
+            Saldo disponível <b>{money(account?.balance || 0)}</b>
+          </p>
+        </div>
+        <button className="outline">Baixar extrato</button>
+      </div>
+      <div className="panel full-panel">
+        <div className="filter-bar">
+          <b>Movimentações</b>
+          <span>{transactions.length} registros</span>
+          <select>
+            <option>Todos os períodos</option>
+            <option>Últimos 30 dias</option>
+          </select>
+        </div>
+        {transactions.map((t) => (
+          <Transaction tx={t} key={t.id} />
+        ))}
+      </div>
+    </section>
+  );
+}
+function Transfer({
+  accounts,
+  selected,
+  setSelected,
+  transfer,
+  setTransfer,
+  onSubmit,
+}: {
+  accounts: Account[];
+  selected: Account | null;
+  setSelected: (a: Account) => void;
+  transfer: any;
+  setTransfer: (x: any) => void;
+  onSubmit: (e: FormEvent) => void;
+}) {
+  return (
+    <section className="page-section narrow">
+      <span className="eyebrow">PAGAMENTO INSTANTÂNEO</span>
+      <h2>Transferir dinheiro</h2>
+      <p className="lead">Envie valores para uma conta NexusPay.</p>
+      <form className="transfer-form panel" onSubmit={onSubmit}>
+        <label>
+          Conta de origem
+          <select
+            value={selected?.id || ""}
+            onChange={(e) => {
+              const a = accounts.find((x) => x.id === Number(e.target.value));
+              if (a) setSelected(a);
+            }}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.accountNumber} · {money(a.balance)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Conta de destino
+          <input
+            required
+            value={transfer.targetAccountNumber}
+            onChange={(e) =>
+              setTransfer({ ...transfer, targetAccountNumber: e.target.value })
+            }
+            placeholder="0000-00"
+          />
+        </label>
+        <label>
+          Valor
+          <input
+            required
+            type="number"
+            min="0.01"
+            max="10000"
+            step="0.01"
+            value={transfer.amount}
+            onChange={(e) =>
+              setTransfer({ ...transfer, amount: e.target.value })
+            }
+            placeholder="R$ 0,00"
+          />
+        </label>
+        <label>
+          Descrição
+          <input
+            required
+            value={transfer.description}
+            onChange={(e) =>
+              setTransfer({ ...transfer, description: e.target.value })
+            }
+          />
+        </label>
+        <div className="transfer-summary">
+          <span>Você está enviando</span>
+          <strong>{money(Number(transfer.amount) || 0)}</strong>
+          <small>O valor será descontado imediatamente.</small>
+        </div>
+        <button className="primary">Revisar transferência →</button>
+      </form>
+    </section>
+  );
+}
+function Profile({ customer }: { customer: Customer | null }) {
+  return (
+    <section className="page-section narrow">
+      <span className="eyebrow">DADOS PESSOAIS</span>
+      <h2>Meu perfil</h2>
+      <p className="lead">Mantenha seus dados de relacionamento atualizados.</p>
+      <div className="panel profile-card">
+        <div className="profile-head">
+          <span className="big-avatar">{customer?.fullName?.slice(0, 1)}</span>
+          <div>
+            <h3>{customer?.fullName}</h3>
+            <span className="status-pill">● Conta ativa</span>
+          </div>
+        </div>
+        <div className="profile-fields">
+          <div>
+            <small>Documento</small>
+            <b>{customer?.document}</b>
+          </div>
+          <div>
+            <small>E-mail</small>
+            <b>{customer?.email}</b>
+          </div>
+          <div>
+            <small>Telefone</small>
+            <b>{customer?.phone}</b>
+          </div>
+          <div>
+            <small>Endereço</small>
+            <b>{customer?.address}</b>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

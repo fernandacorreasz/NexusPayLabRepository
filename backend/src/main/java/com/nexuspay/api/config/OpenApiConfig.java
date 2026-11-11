@@ -11,7 +11,9 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
   @Bean
   OpenAPI nexusOpenAPI() {
-    return new OpenAPI().info(new Info().title("NexusPay API").version("1.0.0").description("NexusPay digital banking platform API"))
-      .components(new Components().addSecuritySchemes("basicAuth", new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("basic")));
+    return new OpenAPI()
+        .info(new Info().title("NexusPay API").version("1.0.0").description("NexusPay digital banking platform API"))
+        .components(new Components().addSecuritySchemes("basicAuth",
+            new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("basic")));
   }
 }

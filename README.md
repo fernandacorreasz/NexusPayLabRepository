@@ -1,5 +1,10 @@
 # NexusPay
 
+Essa aplicação foi desenvolvido de forma didática para praticas de segurança.
+Teste educacional
+
+Tecnologias usadas: Spring Boot, PostgreSQL, Flyway, React e um firmware em contêiner separado. 
+
 NexusPay é uma plataforma de conta digital com gestão de clientes, contas, saldos, extratos, depósitos e transferências. O projeto utiliza Spring Boot, JDBC, PostgreSQL, Flyway, React, Vite, Nginx e Docker Compose.
 
 ## Executar

@@ -35,11 +35,7 @@ services:
     depends_on:
       - backend
   notifications:
-    image: python:3.12-alpine
-    working_dir: /app
-    volumes:
-      - ./notifications:/app:ro
-    command: ["python", "server.py"]
+    build: ./notifications
     ports:
       - "127.0.0.1:8090:8090"
 volumes:
